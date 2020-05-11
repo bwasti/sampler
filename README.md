@@ -20,8 +20,8 @@ std::vector<const void*> addresses;
 Sampler s(addresses, [&]() { f(); });
 ```
 
-This will kick of a separate thread and fork a child process that invokes the passed in function.
-While the sampler is running, we can query for the running results.
+This will kick off a separate thread and fork a child process that invokes the passed in function.
+While the sampler is running, we can query for the results.
 
 ```
 // does not interrupt background execution
