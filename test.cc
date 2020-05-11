@@ -5,19 +5,27 @@
 
 int main() {
   std::vector<const void*> addresses;
+  std::vector<std::string> labels;
 
-  // What's the relative speed of 20x inc/sub, 20x pipeline hazardous fma, 20x
-  // ILP'd fma?
+  // What's the relative speed of imul, inc + sub, fma?
 
   Xbyak::CodeGenerator code(1024 * 16);
   Xbyak::Label l1;
-  addresses.push_back(code.getCurr());
   code.L(l1);
+  code.mov(code.rax, 1023);
+  addresses.push_back(code.getCurr());
+  labels.push_back("imul imm (3)\t");
+  for (auto i = 0; i < 20; ++i) {
+    code.imul(code.rax, code.rax, 3);
+  }
+  addresses.push_back(code.getCurr());
+  labels.push_back("inc, sub 1\t");
   for (auto i = 0; i < 20; ++i) {
     code.inc(code.rax);
     code.sub(code.rax, 1);
   }
   addresses.push_back(code.getCurr());
+  labels.push_back("vfmadd (hazards)");
   for (auto i = 0; i < 5; ++i) {
     code.vfmadd132pd(code.zmm0, code.zmm1, code.zmm2);
     code.vfmadd132pd(code.zmm0, code.zmm1, code.zmm2);
@@ -25,6 +33,7 @@ int main() {
     code.vfmadd132pd(code.zmm0, code.zmm1, code.zmm2);
   }
   addresses.push_back(code.getCurr());
+  labels.push_back("vfmadd (pipelined)");
   for (auto i = 0; i < 5; ++i) {
     code.vfmadd132pd(code.zmm0, code.zmm1, code.zmm2);
     code.vfmadd132pd(code.zmm3, code.zmm4, code.zmm5);
@@ -54,12 +63,14 @@ int main() {
         max = addr_count;
       }
     }
-    for (auto& addr_count : address_map) {
+    for (auto i = 0; i < address_map.size(); ++i) {
       // Last element is always 0
-      if (&addr_count == &address_map.back()) {
+      if (i == address_map.size() - 1) {
         break;
       }
-      std::cout << addr_count << "\t";
+      auto label = labels[i];
+      std::cout << label << "\t";
+      auto addr_count = address_map[i];
       for (auto j = 0; j < (addr_count * 100) / max; ++j) {
         std::cout << "#";
       }
