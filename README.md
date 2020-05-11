@@ -2,6 +2,8 @@
 
 simple C++ `perf_event_open` wrapper
 
+![](https://i.imgur.com/C8WkHHX.gif)
+
 # Test
 
 ```
