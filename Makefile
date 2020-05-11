@@ -1,2 +1,2 @@
 all:
-	g++ test.cc -std=c++14 -pthread -Ixbyak && sudo ./a.out
+	g++ test.cc sampler.cc -std=c++14 -pthread -Ixbyak -o test

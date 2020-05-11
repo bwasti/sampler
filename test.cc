@@ -1,6 +1,8 @@
 #include "sampler.h"
 #include "xbyak/xbyak.h"
 
+#include <chrono>
+
 int main() {
   std::vector<const void*> addresses;
 
