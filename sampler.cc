@@ -1,8 +1,10 @@
 #include "sampler.h"
 
 #include <asm/unistd.h>
+#include <iostream>
 #include <linux/hw_breakpoint.h>
 #include <linux/perf_event.h>
+#include <mutex>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,8 +14,6 @@
 #include <sys/syscall.h>
 #include <sys/utsname.h>
 #include <unistd.h>
-#include <iostream>
-#include <mutex>
 
 long perf_event_open(struct perf_event_attr *hw_event, pid_t pid, int cpu,
                      int group_fd, unsigned long flags) {
@@ -26,20 +26,20 @@ struct __attribute__((packed)) sample {
 };
 
 void Sampler::handle_failure(int sig) {
-  //std::cerr << "Child received signal " << sig << "\n";
+  // std::cerr << "Child received signal " << sig << "\n";
 }
 
 void Sampler::do_profile() {
   pid_t child = 0;
   switch ((child = fork())) {
-    case -1:
-      std::cerr << "fork failed: %m\n";
-      return;
-    case 0:
-      func_();
-      return;
-    default:
-      break;
+  case -1:
+    std::cerr << "fork failed: %m\n";
+    return;
+  case 0:
+    func_();
+    return;
+  default:
+    break;
   }
 
   struct sigaction sa;
@@ -95,7 +95,7 @@ void Sampler::do_profile() {
   while (!local_done) {
     std::unique_lock<detail::Spinlock> lk(lock_);
     local_done |= should_quit_;
-    if (meta_page->data_head == last_head) { 
+    if (meta_page->data_head == last_head) {
       continue;
     }
 
@@ -104,33 +104,33 @@ void Sampler::do_profile() {
     while (progress < last_head) {
       struct sample *here = (struct sample *)(data_page + progress % p_size);
       switch (here->header.type) {
-        case PERF_RECORD_SAMPLE: {
-          if (here->header.size < sizeof(*here)) {
-            fprintf(stderr, "size too small.\n");
-          }
-          const void *addr = (const void *)here->ip;
-          // TODO binary search
-          if (addrs_.size() && addr < addrs_.back() && addr >= addrs_.front()) {
-            size_t index = 0;
-            for (auto &addr_ : addrs_) {
-              if (addr < addr_) {
-                index--;
-                break;
-              }
-              index++;
-            }
-            addr_counts_[index]++;
-          }
-          break;
+      case PERF_RECORD_SAMPLE: {
+        if (here->header.size < sizeof(*here)) {
+          fprintf(stderr, "size too small.\n");
         }
-        case PERF_RECORD_THROTTLE:
-        case PERF_RECORD_UNTHROTTLE:
-        case PERF_RECORD_LOST:
-          break;
-        default:
-          fprintf(stderr, "unknown perf event, bailing...\n");
-          local_done = true;
-          break;
+        const void *addr = (const void *)here->ip;
+        // TODO binary search
+        if (addrs_.size() && addr < addrs_.back() && addr >= addrs_.front()) {
+          size_t index = 0;
+          for (auto &addr_ : addrs_) {
+            if (addr < addr_) {
+              index--;
+              break;
+            }
+            index++;
+          }
+          addr_counts_[index]++;
+        }
+        break;
+      }
+      case PERF_RECORD_THROTTLE:
+      case PERF_RECORD_UNTHROTTLE:
+      case PERF_RECORD_LOST:
+        break;
+      default:
+        fprintf(stderr, "unknown perf event, bailing...\n");
+        local_done = true;
+        break;
       }
       meta_page->data_tail = last_head;
       progress += here->header.size;
