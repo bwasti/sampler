@@ -34,6 +34,7 @@ struct Sampler {
         t_(&Sampler::do_profile, this) {}
 
   void do_profile();
+  static void handle_failure(int sig);
   void join();
   std::vector<size_t> query();
 

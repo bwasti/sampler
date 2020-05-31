@@ -25,6 +25,10 @@ struct __attribute__((packed)) sample {
   uint64_t ip;
 };
 
+void Sampler::handle_failure(int sig) {
+  //std::cerr << "Child received signal " << sig << "\n";
+}
+
 void Sampler::do_profile() {
   pid_t child = 0;
   switch ((child = fork())) {
@@ -38,6 +42,13 @@ void Sampler::do_profile() {
       break;
   }
 
+  struct sigaction sa;
+
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_handler = &Sampler::handle_failure;
+
+  sigaction(SIGCHLD, &sa, NULL);
+
   struct perf_event_attr pe;
   memset(&pe, 0, sizeof(struct perf_event_attr));
   // pe.type = PERF_TYPE_HARDWARE;
@@ -49,7 +60,7 @@ void Sampler::do_profile() {
   pe.exclude_kernel = 1;
   pe.exclude_hv = 1;
   pe.sample_type = PERF_SAMPLE_IP;
-  pe.sample_period = 1;
+  pe.sample_period = 5;
   pe.mmap = 1;
   pe.task = 1;
   // pe.precise_ip = 2;
@@ -61,7 +72,7 @@ void Sampler::do_profile() {
     return;
   }
 
-  size_t mmap_pages_count = 2048;
+  size_t mmap_pages_count = 1024;
   size_t p_size = sysconf(_SC_PAGESIZE);
   size_t len = p_size * (1 + mmap_pages_count);
   struct perf_event_mmap_page *meta_page = (struct perf_event_mmap_page *)mmap(
@@ -84,10 +95,12 @@ void Sampler::do_profile() {
   while (!local_done) {
     std::unique_lock<detail::Spinlock> lk(lock_);
     local_done |= should_quit_;
-    while (meta_page->data_head == last_head)
-      ;
+    if (meta_page->data_head == last_head) { 
+      continue;
+    }
 
     last_head = meta_page->data_head;
+    // rmb();
     while (progress < last_head) {
       struct sample *here = (struct sample *)(data_page + progress % p_size);
       switch (here->header.type) {
@@ -119,6 +132,7 @@ void Sampler::do_profile() {
           local_done = true;
           break;
       }
+      meta_page->data_tail = last_head;
       progress += here->header.size;
     }
   }
