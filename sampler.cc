@@ -140,6 +140,7 @@ void Sampler::do_profile() {
   if (child) {
     kill(child, SIGKILL);
   }
+  munmap(meta_page, len);
 }
 
 void Sampler::join() {
